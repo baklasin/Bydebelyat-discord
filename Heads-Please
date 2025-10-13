@@ -1,0 +1,92 @@
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local platform = workspace.Platform:WaitForChild("Plat")
+
+local teleportEnabled = true
+local autoClick = true
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoStatusGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 180, 0, 60)
+frame.Position = UDim2.new(0, 15, 0, 15)
+frame.BackgroundTransparency = 0.4
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+frame.BorderSizePixel = 0
+frame.Parent = screenGui
+
+
+local autoBuyLabel = Instance.new("TextLabel")
+autoBuyLabel.Size = UDim2.new(1, 0, 0.5, 0)
+autoBuyLabel.Position = UDim2.new(0, 0, 0, 0)
+autoBuyLabel.Text = "L AutoBuy: ON"
+autoBuyLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoBuyLabel.BackgroundTransparency = 1
+autoBuyLabel.Font = Enum.Font.SourceSansBold
+autoBuyLabel.TextSize = 20
+autoBuyLabel.Parent = frame
+
+
+local autoYutLabel = Instance.new("TextLabel")
+autoYutLabel.Size = UDim2.new(1, 0, 0.5, 0)
+autoYutLabel.Position = UDim2.new(0, 0, 0.5, 0)
+autoYutLabel.Text = "P AutoYut: ON"
+autoYutLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoYutLabel.BackgroundTransparency = 1
+autoYutLabel.Font = Enum.Font.SourceSansBold
+autoYutLabel.TextSize = 20
+autoYutLabel.Parent = frame
+
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+
+	if input.KeyCode == Enum.KeyCode.P then
+		teleportEnabled = not teleportEnabled
+		autoYutLabel.Text = "AutoYut: " .. (teleportEnabled and "ON" or "OFF")
+		autoYutLabel.TextColor3 = teleportEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+		print("AutoYut " .. (teleportEnabled and "включен" or "выключен"))
+	end
+
+	if input.KeyCode == Enum.KeyCode.L then
+		autoClick = not autoClick
+		autoBuyLabel.Text = "AutoBuy: " .. (autoClick and "ON" or "OFF")
+		autoBuyLabel.TextColor3 = autoClick and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+		print("AutoBuy " .. (autoClick and "включен" or "выключен"))
+	end
+end)
+
+
+task.spawn(function()
+	while task.wait(0.5) do
+		if teleportEnabled then
+			for _, yut in ipairs(platform:GetChildren()) do
+				if yut:IsA("BasePart") and yut.Parent then
+					rootPart.CFrame = CFrame.new(yut.Position + Vector3.new(0, 0, 0))
+					task.wait(0.2)
+				end
+			end
+		end
+	end
+end)
+
+
+task.spawn(function()
+	local event = ReplicatedStorage.Shared.Remotes.ShopRemotes:WaitForChild("BuyGacha")
+	while task.wait(0.2) do
+		if autoClick then
+			event:FireServer("x10")
+		end
+	end
+end)
