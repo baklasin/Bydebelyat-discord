@@ -1,0 +1,412 @@
+-- AutoHub v1 (интегрированный)
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+
+-- ========== Переменные персонажа (будут обновляться при респавне) ==========
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+local rootPart = character:FindFirstChild("HumanoidRootPart")
+local function refreshCharacter(char)
+	character = char
+	humanoid = character:FindFirstChildOfClass("Humanoid")
+	rootPart = character:FindFirstChild("HumanoidRootPart")
+end
+player.CharacterAdded:Connect(refreshCharacter)
+
+-- ========== Ссылки на объекты (как в твоём оригинальном скрипте) ==========
+local platform = workspace:FindFirstChild("Platform") and workspace.Platform:FindFirstChild("Plat") or nil
+
+-- ========== Remotes (без ошибки, если нет) ==========
+local function safeGet(pathParts)
+	local cur = ReplicatedStorage
+	for _, p in ipairs(pathParts) do
+		if not cur then return nil end
+		cur = cur:FindFirstChild(p)
+	end
+	return cur
+end
+
+local BuyRemote = safeGet({"Shared","Remotes","ShopRemotes"}) and safeGet({"Shared","Remotes","ShopRemotes"}):FindFirstChild("BuyGacha")
+local UseRemote = safeGet({"Shared","Remotes","InventoryRemotes"}) and safeGet({"Shared","Remotes","InventoryRemotes"}):FindFirstChild("UseItem")
+
+-- ========== Состояния функций ==========
+local states = {
+	AutoBuy = false,      -- L
+	AutoUse = false,      -- K
+	AutoCollect = false,  -- P (телепорт по платформе)
+	Fly = false,
+	NoClip = false,
+}
+
+-- ========== Сохранение старых переменных для совместимости с твоей логикой ==========
+-- (если где-то в коде остаются ссылки на autoClick/teleportEnabled/autoUseEnabled)
+local autoClick = false
+local teleportEnabled = false
+local autoUseEnabled = false
+
+-- Keep consistent: зеркалим states <-> старые переменные
+local function syncOldVars()
+	autoClick = states.AutoBuy
+	teleportEnabled = states.AutoCollect
+	autoUseEnabled = states.AutoUse
+end
+
+-- ========== GUI: перетаскиваемая панель с 5 кнопками и индикаторами ==========
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoHubGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 350, 0, 390)
+frame.Position = UDim2.new(0, 12, 1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(18,18,22)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 14)
+
+-- Shadow image for nicer look
+local shadow = Instance.new("ImageLabel")
+shadow.Size = UDim2.new(1, 30, 1, 30)
+shadow.Position = UDim2.new(0, -15, 0, -15)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxassetid://5554236805"
+shadow.ImageColor3 = Color3.new(0,0,0)
+shadow.ImageTransparency = 0.6
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(23,23,277,277)
+shadow.ZIndex = 0
+shadow.Parent = frame
+
+-- Header
+local header = Instance.new("Frame", frame)
+header.Size = UDim2.new(1, 0, 0, 56)
+header.BackgroundTransparency = 1
+
+local title = Instance.new("TextLabel", header)
+title.Text = "AutoHub"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(230,230,255)
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 16, 0, 8)
+title.Size = UDim2.new(0.6, 0, 0, 40)
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local btnClose = Instance.new("TextButton", header)
+btnClose.Size = UDim2.new(0, 36, 0, 36)
+btnClose.Position = UDim2.new(1, -50, 0, 10)
+btnClose.Text = "X"
+btnClose.Font = Enum.Font.GothamBold
+btnClose.TextSize = 18
+btnClose.TextColor3 = Color3.fromRGB(255,255,255)
+btnClose.BackgroundColor3 = Color3.fromRGB(45,45,55)
+btnClose.AutoButtonColor = false
+local btnCloseCorner = Instance.new("UICorner", btnClose)
+btnCloseCorner.CornerRadius = UDim.new(0,8)
+local btnCloseStroke = Instance.new("UIStroke", btnClose)
+btnCloseStroke.Thickness = 1
+btnCloseStroke.Color = Color3.fromRGB(80,80,100)
+
+local dragLabel = Instance.new("TextLabel", header)
+dragLabel.Size = UDim2.new(0, -100, 0, 70)
+dragLabel.Position = UDim2.new(1, -100, 0, 8)
+dragLabel.Text = "Drag"
+dragLabel.BackgroundTransparency = 1
+dragLabel.Font = Enum.Font.Gotham
+dragLabel.TextSize = 22
+dragLabel.TextColor3 = Color3.fromRGB(180,180,255)
+
+local activeLabel = Instance.new("TextLabel", frame)
+activeLabel.Size = UDim2.new(1, -28, 0, 28)
+activeLabel.Position = UDim2.new(0, 14, 0, 64)
+activeLabel.BackgroundTransparency = 1
+activeLabel.Font = Enum.Font.Gotham
+activeLabel.TextSize = 14
+activeLabel.TextColor3 = Color3.fromRGB(160,160,255)
+activeLabel.TextXAlignment = Enum.TextXAlignment.Left
+activeLabel.Text = "Active: 0 / 5"
+
+-- Buttons container
+local holder = Instance.new("Frame", frame)
+holder.Size = UDim2.new(1, -28, 1, -120)
+holder.Position = UDim2.new(0, 14, 0, 100)
+holder.BackgroundTransparency = 1
+
+local list = Instance.new("UIListLayout", holder)
+list.Padding = UDim.new(0, 10)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+list.VerticalAlignment = Enum.VerticalAlignment.Top
+
+-- Helper to create toggle buttons
+local function createToggle(name)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, 48)
+	btn.BackgroundColor3 = Color3.fromRGB(36,36,46)
+	btn.AutoButtonColor = false
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 17
+	btn.Text = name .. ": OFF"
+	btn.TextColor3 = Color3.fromRGB(255, 90, 90)
+
+	local c = Instance.new("UICorner", btn)
+	c.CornerRadius = UDim.new(0,10)
+	local stroke = Instance.new("UIStroke", btn)
+	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(80,80,100)
+
+	-- Click behavior
+	btn.MouseButton1Click:Connect(function()
+		states[name] = not states[name]
+		-- sync old vars
+		syncOldVars()
+		if states[name] then
+			btn.Text = name .. ": ON"
+			btn.TextColor3 = Color3.fromRGB(100,255,140)
+			stroke.Color = Color3.fromRGB(100,255,140)
+		else
+			btn.Text = name .. ": OFF"
+			btn.TextColor3 = Color3.fromRGB(255,90,90)
+			stroke.Color = Color3.fromRGB(80,80,100)
+		end
+
+		-- update count
+		local cnt = 0
+		for _,v in pairs(states) do if v then cnt += 1 end end
+		activeLabel.Text = "Active: " .. cnt .. " / 5"
+	end)
+
+	btn.Parent = holder
+	return btn
+end
+
+-- Create the 5 buttons in order
+local btns = {}
+btns.AutoBuy = createToggle("AutoBuy")
+btns.AutoUse = createToggle("AutoUse")
+btns.AutoCollect = createToggle("AutoCollect")
+btns.Fly = createToggle("Fly")
+btns.NoClip = createToggle("NoClip")
+
+-- Initial entrance tween
+frame.Position = UDim2.new(0, 80, 5, 0)
+TweenService:Create(frame, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 5, 0.32, 0)}):Play()
+
+-- Close button hides panel (toggle)
+local guiVisible = true
+btnClose.MouseButton1Click:Connect(function()
+	guiVisible = not guiVisible
+	local target = guiVisible and UDim2.new(0, 14, 0.3, 0) or UDim2.new(0, -380, 0.12, 0)
+	TweenService:Create(frame, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Position = target}):Play()
+end)
+
+-- Allow F4 to toggle visibility as well
+UserInputService.InputBegan:Connect(function(inp, gpe)
+	if gpe then return end
+	if inp.KeyCode == Enum.KeyCode.F4 then
+		guiVisible = not guiVisible
+		local target = guiVisible and UDim2.new(0, 14, 0.12, 0) or UDim2.new(0, -380, 0.12, 0)
+		TweenService:Create(frame, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Position = target}):Play()
+	end
+end)
+
+-- Drag logic
+do
+	local dragging = false
+	local dragStart
+	local startPos
+	dragLabel.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+end
+
+-- ========== Клавиши: поддерживаем L / P / K как в оригинале ==========
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.P then
+		states.AutoCollect = not states.AutoCollect
+		-- update button text
+		if states.AutoCollect then btns.AutoCollect.Text = "AutoCollect: ON" btns.AutoCollect.TextColor3 = Color3.fromRGB(100,255,140) else btns.AutoCollect.Text = "AutoCollect: OFF" btns.AutoCollect.TextColor3 = Color3.fromRGB(255,90,90) end
+		syncOldVars()
+		local cnt = 0 for _,v in pairs(states) do if v then cnt += 1 end end
+		activeLabel.Text = "Active: " .. cnt .. " / 5"
+		print("P AutoCollect " .. (states.AutoCollect and "включен" or "выключен"))
+	end
+	if input.KeyCode == Enum.KeyCode.L then
+		states.AutoBuy = not states.AutoBuy
+		if states.AutoBuy then btns.AutoBuy.Text = "AutoBuy: ON" btns.AutoBuy.TextColor3 = Color3.fromRGB(100,255,140) else btns.AutoBuy.Text = "AutoBuy: OFF" btns.AutoBuy.TextColor3 = Color3.fromRGB(255,90,90) end
+		syncOldVars()
+		local cnt = 0 for _,v in pairs(states) do if v then cnt += 1 end end
+		activeLabel.Text = "Active: " .. cnt .. " / 5"
+		print("L AutoBuy " .. (states.AutoBuy and "включен" or "выключен"))
+	end
+	if input.KeyCode == Enum.KeyCode.K then
+		states.AutoUse = not states.AutoUse
+		if states.AutoUse then btns.AutoUse.Text = "AutoUse: ON" btns.AutoUse.TextColor3 = Color3.fromRGB(100,255,140) else btns.AutoUse.Text = "AutoUse: OFF" btns.AutoUse.TextColor3 = Color3.fromRGB(255,90,90) end
+		syncOldVars()
+		local cnt = 0 for _,v in pairs(states) do if v then cnt += 1 end end
+		activeLabel.Text = "Active: " .. cnt .. " / 5"
+		print("K AutoUse " .. (states.AutoUse and "включен" or "выключен"))
+	end
+end)
+
+-- ========== Авто-циклы функций ==========
+
+-- AutoBuy (x50 -> 10)
+task.spawn(function()
+	local event = BuyRemote
+	while task.wait(0.25) do
+		if states.AutoBuy and event then
+			pcall(function()
+				event:FireServer("x50")
+				task.wait(0.09)
+				event:FireServer("10")
+			end)
+		end
+	end
+end)
+
+-- AutoUse (использовать предмет, пример "Yut")
+task.spawn(function()
+	local event = UseRemote
+	-- try to find the player's UseButton if possible (как у тебя)
+	local playerGui = player:WaitForChild("PlayerGui")
+	local useButton
+	-- safe attempt to find the UI button path (may differ per game)
+	pcall(function()
+		useButton = playerGui:FindFirstChildWhichIsA("ScreenGui", true) -- not precise but keep attempt
+		-- the original script expected: mainInterface.MainFrame.FrameHolder.InventoryFrame.ItemInventoryFrame.InfoHolder.UseButton
+		local ok, btn = pcall(function()
+			if playerGui:FindFirstChild("mainInterface") then
+				return playerGui.mainInterface.MainFrame.FrameHolder.InventoryFrame.ItemInventoryFrame.InfoHolder.UseButton
+			end
+		end)
+		if ok and btn then useButton = btn end
+	end)
+
+	while task.wait(0.4) do
+		if states.AutoUse and event then
+			-- try to activate UI button (if visible)
+			pcall(function()
+				if useButton and type(useButton.Activate) == "function" then
+					useButton:Activate()
+				end
+			end)
+			-- call remote
+			pcall(function()
+				event:FireServer("Yut")
+			end)
+		end
+	end
+end)
+
+-- AutoCollect: оригинальная телепортация по platform Plat (как у тебя)
+task.spawn(function()
+	while task.wait(0.5) do
+		if states.AutoCollect and platform and rootPart then
+			for _, yut in ipairs(platform:GetChildren()) do
+				if yut:IsA("BasePart") and yut.Parent then
+					-- телепортируемся на объект
+					pcall(function()
+						rootPart.CFrame = CFrame.new(yut.Position + Vector3.new(0, 0, 0))
+					end)
+					task.wait(0.18)
+				end
+			end
+		end
+	end
+end)
+
+-- Fly (WASD + Space + Ctrl)
+do
+	local flying = false
+	local bodyGyro, bodyVel
+	local flySpeed = 70
+	RunService.RenderStepped:Connect(function()
+		if states.Fly and rootPart and character then
+			if not flying then
+				flying = true
+				bodyGyro = Instance.new("BodyGyro", rootPart)
+				bodyGyro.P = 9e5
+				bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+
+				bodyVel = Instance.new("BodyVelocity", rootPart)
+				bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+			end
+
+			local cam = workspace.CurrentCamera
+			local moveVec = Vector3.zero
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec -= cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec -= cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.new(0,1,0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVec -= Vector3.new(0,1,0) end
+
+			if moveVec.Magnitude > 0 then
+				bodyVel.Velocity = moveVec.Unit * flySpeed
+			else
+				bodyVel.Velocity = Vector3.zero
+			end
+			bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+		else
+			if flying then
+				flying = false
+				if bodyGyro then bodyGyro:Destroy(); bodyGyro = nil end
+				if bodyVel then bodyVel:Destroy(); bodyVel = nil end
+			end
+		end
+	end)
+end
+
+-- NoClip (выключает коллизии частей персонажа)
+RunService.Stepped:Connect(function()
+	if states.NoClip and character then
+		for _, part in ipairs(character:GetChildren()) do
+			if part:IsA("BasePart") then
+				pcall(function() part.CanCollide = false end)
+			end
+		end
+	end
+end)
+
+-- Ensure NoClip applied after respawn
+player.CharacterAdded:Connect(function(char)
+	refreshCharacter(char)
+	task.wait(0.2)
+	if states.NoClip then
+		for _, part in ipairs(char:GetChildren()) do
+			if part:IsA("BasePart") then
+				pcall(function() part.CanCollide = false end)
+			end
+		end
+	end
+end)
+
+-- Sync old vars to states (initial)
+syncOldVars()
