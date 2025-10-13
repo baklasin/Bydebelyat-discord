@@ -9,8 +9,8 @@ local character = player.Character or player.CharacterAdded:Wait()
 local rootPart = character:WaitForChild("HumanoidRootPart")
 local platform = workspace.Platform:WaitForChild("Plat")
 
-local teleportEnabled = true
-local autoClick = true
+local teleportEnabled = false
+local autoClick = false
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AutoStatusGUI"
@@ -30,8 +30,8 @@ frame.Parent = screenGui
 local autoBuyLabel = Instance.new("TextLabel")
 autoBuyLabel.Size = UDim2.new(1, 0, 0.5, 0)
 autoBuyLabel.Position = UDim2.new(0, 0, 0, 0)
-autoBuyLabel.Text = "L AutoBuy: ON"
-autoBuyLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoBuyLabel.Text = "L AutoBuy: OFF"
+autoBuyLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
 autoBuyLabel.BackgroundTransparency = 1
 autoBuyLabel.Font = Enum.Font.SourceSansBold
 autoBuyLabel.TextSize = 20
@@ -41,8 +41,8 @@ autoBuyLabel.Parent = frame
 local autoYutLabel = Instance.new("TextLabel")
 autoYutLabel.Size = UDim2.new(1, 0, 0.5, 0)
 autoYutLabel.Position = UDim2.new(0, 0, 0.5, 0)
-autoYutLabel.Text = "P AutoYut: ON"
-autoYutLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+autoYutLabel.Text = "P AutoYut: OFF"
+autoYutLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
 autoYutLabel.BackgroundTransparency = 1
 autoYutLabel.Font = Enum.Font.SourceSansBold
 autoYutLabel.TextSize = 20
@@ -54,16 +54,16 @@ UserInputService.InputBegan:Connect(function(input, gp)
 
 	if input.KeyCode == Enum.KeyCode.P then
 		teleportEnabled = not teleportEnabled
-		autoYutLabel.Text = "AutoYut: " .. (teleportEnabled and "ON" or "OFF")
+		autoYutLabel.Text = "P AutoYut: " .. (teleportEnabled and "ON" or "OFF")
 		autoYutLabel.TextColor3 = teleportEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-		print("AutoYut " .. (teleportEnabled and "включен" or "выключен"))
+		print("P AutoYut " .. (teleportEnabled and "включен" or "выключен"))
 	end
 
 	if input.KeyCode == Enum.KeyCode.L then
 		autoClick = not autoClick
-		autoBuyLabel.Text = "AutoBuy: " .. (autoClick and "ON" or "OFF")
+		autoBuyLabel.Text = "L AutoBuy: " .. (autoClick and "ON" or "OFF")
 		autoBuyLabel.TextColor3 = autoClick and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-		print("AutoBuy " .. (autoClick and "включен" or "выключен"))
+		print("L AutoBuy " .. (autoClick and "включен" or "выключен"))
 	end
 end)
 
@@ -86,7 +86,66 @@ task.spawn(function()
 	local event = ReplicatedStorage.Shared.Remotes.ShopRemotes:WaitForChild("BuyGacha")
 	while task.wait(0.2) do
 		if autoClick then
-			event:FireServer("x10")
+			-- Сначала x50
+			event:FireServer("x50")
+			task.wait(0.1)
+			-- Потом 10
+			event:FireServer("10")
 		end
+	end
+end)
+
+
+-- === Автоиспользование предметов (AutoUseYut) ===
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local AutoUseYutEvent = ReplicatedStorage.Shared.Remotes.InventoryRemotes:WaitForChild("UseItem")
+local playerguiUse = player:WaitForChild("PlayerGui")
+    .mainInterface.MainFrame.FrameHolder.InventoryFrame.ItemInventoryFrame.InfoHolder.UseButton
+
+-- Переменная состояния
+local autoUseEnabled = false
+
+-- GUI-индикатор (создаётся если не было)
+local screenGui = playerguiUse:FindFirstAncestorWhichIsA("ScreenGui")
+local indicator = Instance.new("TextLabel")
+indicator.Size = UDim2.new(0, 200, 0, 40)
+indicator.Position = UDim2.new(0.5, -100, 0, 100)
+indicator.BackgroundTransparency = 0.4
+indicator.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+indicator.TextColor3 = Color3.fromRGB(255, 255, 255)
+indicator.TextScaled = true
+indicator.Font = Enum.Font.SourceSansBold
+indicator.Text = "K AutoUseYut: OFF"
+indicator.Parent = screenGui
+
+-- Переключение кнопкой "K"
+UserInputService.InputBegan:Connect(function(input, gp)
+	if not gp and input.KeyCode == Enum.KeyCode.K then
+		autoUseEnabled = not autoUseEnabled
+		indicator.Text = "K AutoUseYut: " .. (autoUseEnabled and "ON" or "OFF")
+		print("K AutoUseYut:", autoUseEnabled and "ON" or "OFF")
+	end
+end)
+
+-- Основной цикл
+task.spawn(function()
+	while true do
+		if autoUseEnabled then
+			if playerguiUse and playerguiUse.Visible then
+				-- Нажимаем кнопку
+				pcall(function()
+					playerguiUse:Activate()
+				end)
+				-- Отправляем событие на сервер
+				pcall(function()
+					AutoUseYutEvent:FireServer("Yut") -- аргумент можешь поменять, если другой ID
+				end)
+			end
+		end
+		task.wait(0.3)
 	end
 end)
