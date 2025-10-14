@@ -66,7 +66,7 @@ gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 440, 0, 500)
+frame.Size = UDim2.new(0, 440, 0, 540)
 frame.Position = UDim2.new(0, 20, 0.12, 0)
 frame.AnchorPoint = Vector2.new(0,0)
 frame.BackgroundColor3 = Color3.fromRGB(18,18,22)
@@ -315,7 +315,7 @@ btnMin.MouseButton1Click:Connect(function()
 		holder.Visible = false
 		activeLabel.Visible = false
 	else
-		TweenService:Create(frame, TweenInfo.new(0.35), {Size = UDim2.new(0,420,0,460)}):Play()
+		TweenService:Create(frame, TweenInfo.new(0.35), {Size = UDim2.new(0, 440, 0, 540)}):Play()
 		task.delay(0.36, function() holder.Visible = true; activeLabel.Visible = true end)
 	end
 end)
@@ -520,5 +520,3 @@ end)
 
 -- initial sync
 syncOldVars()
-
-print("✅ AutoHub + Enchant integrated loaded. Toggle UI with F4.")
