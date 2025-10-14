@@ -1,0 +1,725 @@
+-- AutoHub V1.3 - Modern GUI Edition
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+
+-- ========== Character handling ==========
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+local function refreshCharacter(char)
+	character = char
+	humanoid = character:FindFirstChildOfClass("Humanoid")
+	rootPart = character:FindFirstChild("HumanoidRootPart")
+end
+player.CharacterAdded:Connect(refreshCharacter)
+
+-- ========== Utility Functions ==========
+local function safeGet(pathParts)
+	local cur = ReplicatedStorage
+	for _, p in ipairs(pathParts) do
+		if not cur then return nil end
+		cur = cur:FindFirstChild(p)
+	end
+	return cur
+end
+
+-- ========== Remotes ==========
+local BuyRemote = safeGet({"Shared","Remotes","ShopRemotes"}) and safeGet({"Shared","Remotes","ShopRemotes"}):FindFirstChild("BuyGacha")
+local UseRemote = safeGet({"Shared","Remotes","InventoryRemotes"}) and safeGet({"Shared","Remotes","InventoryRemotes"}):FindFirstChild("UseItem")
+local EnchantRemotesFolder = safeGet({"Shared","Remotes","EnchantRemotes"})
+
+-- ========== States ==========
+local states = {
+	AutoBuy = false,
+	AutoUse = false,
+	AutoCollect = false,
+	Fly = false,
+	NoClip = false,
+	AutoClick = false,
+}
+
+-- ========== GUI Creation ==========
+pcall(function() player.PlayerGui:FindFirstChild("AutoHubModernGUI"):Destroy() end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoHubModernGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 480, 0, 600)
+frame.Position = UDim2.new(0.5, -40, 0.5, -300)
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
+frame.Parent = gui
+
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 20)
+
+-- Animated Gradient Background
+local gradientBg = Instance.new("Frame", frame)
+gradientBg.Size = UDim2.new(1, 0, 1, 0)
+gradientBg.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+gradientBg.BorderSizePixel = 0
+gradientBg.ZIndex = 0
+
+local bgGradient = Instance.new("UIGradient", gradientBg)
+bgGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 65)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(25, 25, 35)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 55))
+}
+bgGradient.Rotation = 45
+
+-- Animated gradient rotation
+task.spawn(function()
+	while task.wait(0.05) do
+		bgGradient.Rotation = (bgGradient.Rotation + 0.5) % 360
+	end
+end)
+
+local bgCorner = Instance.new("UICorner", gradientBg)
+bgCorner.CornerRadius = UDim.new(0, 20)
+
+-- Glow Effect
+local glow = Instance.new("ImageLabel", frame)
+glow.Name = "Glow"
+glow.Size = UDim2.new(1, 60, 1, 60)
+glow.Position = UDim2.new(0.5, -30, 0.5, -30)
+glow.AnchorPoint = Vector2.new(0.5, 0.5)
+glow.BackgroundTransparency = 1
+glow.Image = "rbxassetid://5554236805"
+glow.ImageColor3 = Color3.fromRGB(100, 100, 255)
+glow.ImageTransparency = 0.6
+glow.ZIndex = -1
+glow.ScaleType = Enum.ScaleType.Slice
+glow.SliceCenter = Rect.new(23, 23, 277, 277)
+
+-- Header
+local header = Instance.new("Frame", frame)
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 80)
+header.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+header.BorderSizePixel = 0
+
+local headerCorner = Instance.new("UICorner", header)
+headerCorner.CornerRadius = UDim.new(0, 20)
+
+local headerGradient = Instance.new("UIGradient", header)
+headerGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 60, 90)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 50))
+}
+headerGradient.Rotation = 90
+
+-- Logo/Icon
+local logo = Instance.new("TextLabel", header)
+logo.Size = UDim2.new(0, 60, 0, 60)
+logo.Position = UDim2.new(0, 15, 0.5, -30)
+logo.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+logo.Text = "AHub"
+logo.Font = Enum.Font.GothamBold
+logo.TextSize = 20
+logo.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local logoCorner = Instance.new("UICorner", logo)
+logoCorner.CornerRadius = UDim.new(0, 15)
+
+local logoStroke = Instance.new("UIStroke", logo)
+logoStroke.Color = Color3.fromRGB(150, 150, 255)
+logoStroke.Thickness = 2
+
+-- Title
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(0, 250, 0, 30)
+title.Position = UDim2.new(0, 85, 0, 15)
+title.BackgroundTransparency = 1
+title.Text = "AutoHub Pro"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 24
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Subtitle
+local subtitle = Instance.new("TextLabel", header)
+subtitle.Size = UDim2.new(0, 250, 0, 20)
+subtitle.Position = UDim2.new(0, 85, 0, 45)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "Free Premium Edition • V1.0 • Discord AutoHUBDev"
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextSize = 12
+subtitle.TextColor3 = Color3.fromRGB(180, 180, 220)
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Close Button
+local btnClose = Instance.new("TextButton", header)
+btnClose.Size = UDim2.new(0, 45, 0, 45)
+btnClose.Position = UDim2.new(1, -60, 0.5, -22.5)
+btnClose.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+btnClose.Text = "X"
+btnClose.Font = Enum.Font.GothamBold
+btnClose.TextSize = 20
+btnClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnClose.AutoButtonColor = false
+
+local closeCorner = Instance.new("UICorner", btnClose)
+closeCorner.CornerRadius = UDim.new(0, 12)
+
+local closeStroke = Instance.new("UIStroke", btnClose)
+closeStroke.Color = Color3.fromRGB(255, 100, 100)
+closeStroke.Thickness = 2
+
+-- Minimize Button
+local btnMin = Instance.new("TextButton", header)
+btnMin.Size = UDim2.new(0, 45, 0, 45)
+btnMin.Position = UDim2.new(1, -115, 0.5, -22.5)
+btnMin.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+btnMin.Text = "—"
+btnMin.Font = Enum.Font.GothamBold
+btnMin.TextSize = 20
+btnMin.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnMin.AutoButtonColor = false
+
+local minCorner = Instance.new("UICorner", btnMin)
+minCorner.CornerRadius = UDim.new(0, 12)
+
+local minStroke = Instance.new("UIStroke", btnMin)
+minStroke.Color = Color3.fromRGB(150, 150, 255)
+minStroke.Thickness = 2
+
+-- Status Bar
+local statusBar = Instance.new("Frame", frame)
+statusBar.Size = UDim2.new(1, -40, 0, 50)
+statusBar.Position = UDim2.new(0, 20, 0, 100)
+statusBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+statusBar.BorderSizePixel = 0
+
+local statusCorner = Instance.new("UICorner", statusBar)
+statusCorner.CornerRadius = UDim.new(0, 15)
+
+local statusStroke = Instance.new("UIStroke", statusBar)
+statusStroke.Color = Color3.fromRGB(80, 80, 120)
+statusStroke.Thickness = 1
+
+local statusLabel = Instance.new("TextLabel", statusBar)
+statusLabel.Size = UDim2.new(1, -20, 1, 0)
+statusLabel.Position = UDim2.new(0, 10, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "🟢 Active Features: 0/6"
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 16
+statusLabel.TextColor3 = Color3.fromRGB(150, 255, 150)
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Buttons Container
+local container = Instance.new("ScrollingFrame", frame)
+container.Size = UDim2.new(1, -40, 1, -240)
+container.Position = UDim2.new(0, 20, 0, 170)
+container.BackgroundTransparency = 1
+container.BorderSizePixel = 0
+container.ScrollBarThickness = 6
+container.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 255)
+container.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local listLayout = Instance.new("UIListLayout", container)
+listLayout.Padding = UDim.new(0, 15)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Auto-resize canvas
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	container.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+end)
+
+-- ========== Create Toggle Button Function ==========
+local function createToggle(name, emoji, description)
+	local btn = Instance.new("Frame")
+	btn.Size = UDim2.new(1, 0, 0, 75)
+	btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	btn.BorderSizePixel = 0
+	
+	local btnCorner = Instance.new("UICorner", btn)
+	btnCorner.CornerRadius = UDim.new(0, 15)
+	
+	local btnStroke = Instance.new("UIStroke", btn)
+	btnStroke.Color = Color3.fromRGB(70, 70, 100)
+	btnStroke.Thickness = 2
+	
+	-- Icon
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 50, 0, 50)
+	icon.Position = UDim2.new(0, 15, 0.5, -25)
+	icon.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
+	icon.Text = emoji
+	icon.Font = Enum.Font.GothamBold
+	icon.TextSize = 28
+	icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	local iconCorner = Instance.new("UICorner", icon)
+	iconCorner.CornerRadius = UDim.new(0, 12)
+	
+	-- Title
+	local titleLabel = Instance.new("TextLabel", btn)
+	titleLabel.Size = UDim2.new(0, 250, 0, 25)
+	titleLabel.Position = UDim2.new(0, 75, 0, 12)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = name
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 18
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	
+	-- Description
+	local desc = Instance.new("TextLabel", btn)
+	desc.Size = UDim2.new(0, 250, 0, 20)
+	desc.Position = UDim2.new(0, 75, 0, 40)
+	desc.BackgroundTransparency = 1
+	desc.Text = description
+	desc.Font = Enum.Font.Gotham
+	desc.TextSize = 12
+	desc.TextColor3 = Color3.fromRGB(150, 150, 180)
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	
+	-- Toggle Switch
+	local switch = Instance.new("Frame", btn)
+	switch.Size = UDim2.new(0, 60, 0, 30)
+	switch.Position = UDim2.new(1, -75, 0.5, -15)
+	switch.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+	switch.BorderSizePixel = 0
+	
+	local switchCorner = Instance.new("UICorner", switch)
+	switchCorner.CornerRadius = UDim.new(1, 0)
+	
+	local knob = Instance.new("Frame", switch)
+	knob.Size = UDim2.new(0, 24, 0, 24)
+	knob.Position = UDim2.new(0, 3, 0.5, -12)
+	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	knob.BorderSizePixel = 0
+	
+	local knobCorner = Instance.new("UICorner", knob)
+	knobCorner.CornerRadius = UDim.new(1, 0)
+	
+	-- Click Button (Invisible)
+	local clickBtn = Instance.new("TextButton", btn)
+	clickBtn.Size = UDim2.new(1, 0, 1, 0)
+	clickBtn.BackgroundTransparency = 1
+	clickBtn.Text = ""
+	
+	-- Toggle Logic
+	clickBtn.MouseButton1Click:Connect(function()
+		states[name] = not states[name]
+		
+		if states[name] then
+			-- ON State
+			TweenService:Create(switch, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.3), {Position = UDim2.new(1, -27, 0.5, -12)}):Play()
+			TweenService:Create(btnStroke, TweenInfo.new(0.3), {Color = Color3.fromRGB(100, 255, 150)}):Play()
+			TweenService:Create(icon, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(80, 200, 120)}):Play()
+		else
+			-- OFF State
+			TweenService:Create(switch, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(80, 80, 100)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.3), {Position = UDim2.new(0, 3, 0.5, -12)}):Play()
+			TweenService:Create(btnStroke, TweenInfo.new(0.3), {Color = Color3.fromRGB(70, 70, 100)}):Play()
+			TweenService:Create(icon, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(60, 60, 90)}):Play()
+		end
+		
+		-- Update status
+		local count = 0
+		for _, v in pairs(states) do
+			if v then count = count + 1 end
+		end
+		statusLabel.Text = "🟢 Active Features: " .. count .. "/6"
+	end)
+	
+	-- Hover Effect
+	clickBtn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 75)}):Play()
+	end)
+	
+	clickBtn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 60)}):Play()
+	end)
+	
+	btn.Parent = container
+	return btn
+end
+
+-- ========== Create Enchant Button ==========
+local function createEnchantButton()
+	local btn = Instance.new("Frame")
+	btn.Size = UDim2.new(1, 0, 0, 75)
+	btn.BackgroundColor3 = Color3.fromRGB(60, 40, 80)
+	btn.BorderSizePixel = 0
+	
+	local btnCorner = Instance.new("UICorner", btn)
+	btnCorner.CornerRadius = UDim.new(0, 15)
+	
+	local btnStroke = Instance.new("UIStroke", btn)
+	btnStroke.Color = Color3.fromRGB(150, 100, 200)
+	btnStroke.Thickness = 2
+	
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 50, 0, 50)
+	icon.Position = UDim2.new(0, 15, 0.5, -25)
+	icon.BackgroundColor3 = Color3.fromRGB(100, 60, 140)
+	icon.Text = "🔮"
+	icon.Font = Enum.Font.GothamBold
+	icon.TextSize = 28
+	icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	local iconCorner = Instance.new("UICorner", icon)
+	iconCorner.CornerRadius = UDim.new(0, 12)
+	
+	local titleLabel = Instance.new("TextLabel", btn)
+	titleLabel.Size = UDim2.new(0, 300, 0, 25)
+	titleLabel.Position = UDim2.new(0, 75, 0, 12)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "Enchant All"
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 18
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local desc = Instance.new("TextLabel", btn)
+	desc.Size = UDim2.new(0, 300, 0, 20)
+	desc.Position = UDim2.new(0, 75, 0, 40)
+	desc.BackgroundTransparency = 1
+	desc.Text = "Trigger all enchant remotes"
+	desc.Font = Enum.Font.Gotham
+	desc.TextSize = 12
+	desc.TextColor3 = Color3.fromRGB(180, 150, 200)
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local clickBtn = Instance.new("TextButton", btn)
+	clickBtn.Size = UDim2.new(1, 0, 1, 0)
+	clickBtn.BackgroundTransparency = 1
+	clickBtn.Text = ""
+	
+	local debounce = false
+	clickBtn.MouseButton1Click:Connect(function()
+		if debounce then return end
+		debounce = true
+		
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 60, 140)}):Play()
+		titleLabel.Text = "✨ Enchanting..."
+		
+		-- Trigger enchant
+		local folder = EnchantRemotesFolder or safeGet({"Shared","Remotes","EnchantRemotes"})
+		if folder then
+			for _, obj in ipairs(folder:GetChildren()) do
+				if obj:IsA("RemoteEvent") then
+					task.spawn(function()
+						pcall(function()
+							obj:FireServer("ButtonLabel")
+						end)
+					end)
+				end
+			end
+		end
+		
+		task.wait(1)
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 40, 80)}):Play()
+		titleLabel.Text = "Enchant All"
+		debounce = false
+	end)
+	
+	clickBtn.MouseEnter:Connect(function()
+		if not debounce then
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 50, 95)}):Play()
+		end
+	end)
+	
+	clickBtn.MouseLeave:Connect(function()
+		if not debounce then
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 40, 80)}):Play()
+		end
+	end)
+	
+	btn.Parent = container
+	return btn
+end
+
+-- ========== Create Buttons ==========
+createToggle("AutoBuy", "🛒", "Auto-purchase items")
+createToggle("AutoUse", "🌀", "Auto-use inventory items")
+createToggle("AutoCollect", "🎯", "Auto-collect platform items")
+createToggle("Fly", "🕊️", "Fly mode (WASD + Space)")
+createToggle("NoClip", "🔓", "Walk through walls")
+createToggle("AutoClick", "🖱️", "Auto click rapidly (toggle / F key)")
+
+createEnchantButton()
+
+-- ========== Entrance Animation ==========
+frame.Position = UDim2.new(0.5, -240, 1.5, 0)
+frame.Size = UDim2.new(0, 0, 0, 0)
+
+task.wait(0.1)
+
+TweenService:Create(frame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	Size = UDim2.new(0, 480, 0, 600),
+	Position = UDim2.new(0.5, -240, 0.5, -140)
+}):Play()
+
+-- ========== Button Functions ==========
+local guiVisible = true
+
+btnClose.MouseButton1Click:Connect(function()
+	TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+		Size = UDim2.new(0, 0, 0, 0),
+		Position = UDim2.new(0.5, 0, 0.5, 0)
+	}):Play()
+	
+	task.wait(0.5)
+	gui:Destroy()
+end)
+
+local minimized = false
+btnMin.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	
+	if minimized then
+		TweenService:Create(frame, TweenInfo.new(0.4), {Size = UDim2.new(0, 480, 0, 80)}):Play()
+		container.Visible = false
+		statusBar.Visible = false
+	else
+		TweenService:Create(frame, TweenInfo.new(0.4), {Size = UDim2.new(0, 480, 0, 600)}):Play()
+		task.wait(0.4)
+		container.Visible = true
+		statusBar.Visible = true
+	end
+end)
+
+-- F4 Toggle
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.F4 then
+		guiVisible = not guiVisible
+		
+		if guiVisible then
+			frame.Visible = true
+			TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Size = UDim2.new(0, 480, 0, 600),
+				Position = UDim2.new(0.5, -240, 0.5, -300)
+			}):Play()
+		else
+			TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+				Size = UDim2.new(0, 0, 0, 0),
+				Position = UDim2.new(0.5, 0, 0.5, 0)
+			}):Play()
+			
+			task.wait(0.5)
+			frame.Visible = false
+		end
+	end
+end)
+
+-- ========== Drag Functionality ==========
+local dragging = false
+local dragStart = Vector2.new()
+local startPos = UDim2.new()
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ========== Hover Effects for Buttons ==========
+btnClose.MouseEnter:Connect(function()
+	TweenService:Create(btnClose, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+end)
+
+btnClose.MouseLeave:Connect(function()
+	TweenService:Create(btnClose, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 70, 70)}):Play()
+end)
+
+btnMin.MouseEnter:Connect(function()
+	TweenService:Create(btnMin, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(130, 130, 255)}):Play()
+end)
+
+btnMin.MouseLeave:Connect(function()
+	TweenService:Create(btnMin, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 100, 255)}):Play()
+end)
+
+-- ========== AUTO LOOPS (Same as before) ==========
+task.spawn(function()
+	while task.wait(0.25) do
+		if states.AutoBuy and BuyRemote then
+			pcall(function()
+				BuyRemote:FireServer("x50")
+				task.wait(0.09)
+				BuyRemote:FireServer("10")
+			end)
+		end
+	end
+end)
+
+-- Новый AutoCollect
+task.spawn(function()
+	while task.wait(0.5) do
+		if states.AutoCollect and rootPart then
+			local platform = workspace:FindFirstChild("Platform") and workspace.Platform:FindFirstChild("Plat")
+			if platform then
+				for _, yut in ipairs(platform:GetChildren()) do
+					if yut:IsA("BasePart") and yut.Parent then
+						pcall(function()
+							local targetPos = yut.Position
+							local rootPos = rootPart.Position
+							local direction = (targetPos - rootPos).Unit
+							
+							-- Точка телепортации на 40 студов от Yut
+							local teleportPos = targetPos - direction * 40
+							rootPart.CFrame = CFrame.new(teleportPos)
+							
+							-- Время полета (расстояние / 10)
+							local distance = (targetPos - teleportPos).Magnitude
+							local travelTime = distance / 20
+							
+							-- Tween для плавного долета
+							local tweenInfo = TweenInfo.new(travelTime, Enum.EasingStyle.Linear)
+							local tween = game:GetService("TweenService"):Create(rootPart, tweenInfo, {CFrame = CFrame.new(targetPos)})
+							tween:Play()
+							tween.Completed:Wait()
+						end)
+						task.wait(0.2)
+					end
+				end
+			end
+		end
+	end
+end)
+
+
+
+-- AutoClick (быстрый автокликер)
+task.spawn(function()
+	while task.wait(0.2) do -- 0.05 = ~20 кликов/сек (изменяй при желании)
+		if not gui.Parent then break end
+		if states.AutoClick then
+			pcall(function()
+				-- имитируем короткий клик
+				VirtualUser:Button1Down(Vector2.new(), workspace.CurrentCamera.CFrame)
+				task.wait(0.01)
+				VirtualUser:Button1Up(Vector2.new(), workspace.CurrentCamera.CFrame)
+			end)
+		end
+	end
+end)
+
+
+
+
+
+-- Fly
+do
+	local flying = false
+	local bodyGyro, bodyVel
+	local flySpeed = 70
+	
+	RunService.RenderStepped:Connect(function()
+		if states.Fly and rootPart and character then
+			if not flying then
+				flying = true
+				bodyGyro = Instance.new("BodyGyro", rootPart)
+				bodyGyro.P = 9e5
+				bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+				bodyVel = Instance.new("BodyVelocity", rootPart)
+				bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+			end
+			
+			local cam = workspace.CurrentCamera
+			local moveVec = Vector3.zero
+			
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec -= cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec -= cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveVec += Vector3.new(0, 1, 0) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveVec -= Vector3.new(0, 1, 0) end
+			
+			bodyVel.Velocity = moveVec.Magnitude > 0 and moveVec.Unit * flySpeed or Vector3.zero
+			bodyGyro.CFrame = cam.CFrame
+		else
+			if flying then
+				flying = false
+				if bodyGyro then bodyGyro:Destroy() end
+				if bodyVel then bodyVel:Destroy() end
+			end
+		end
+	end)
+end
+
+-- NoClip
+RunService.Stepped:Connect(function()
+	if states.NoClip and character then
+		for _, part in ipairs(character:GetChildren()) do
+			if part:IsA("BasePart") then
+				pcall(function() part.CanCollide = false end)
+			end
+		end
+	end
+end)
+
+
+
+-- Тоггл автоклика по клавише F (имитирует нажатие на скрытую кнопку в созданном toggle)
+local function activateToggleByName(name)
+	for _, child in ipairs(automationContent:GetChildren()) do
+		if child:IsA("Frame") then
+			-- ищем TextLabel с тектом названия
+			for _, c in ipairs(child:GetChildren()) do
+				if c:IsA("TextLabel") and c.Text == name then
+					local btn = child:FindFirstChildOfClass("TextButton") -- invisibleBtn
+					if btn then
+						pcall(function() btn:Activate() end) -- активируем визуально toggle
+					end
+					return
+				end
+			end
+		end
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.F then
+		activateToggleByName("AutoClick")
+	end
+end)
+
+
+print("✅ AutoHub Free Premium Edition (Updated) loaded successfully!")
