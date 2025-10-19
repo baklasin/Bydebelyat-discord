@@ -1,0 +1,968 @@
+-- AutoHub V2.0 - Premium Edition with Tabs
+local AutoallredeemEvent = game.ReplicatedStorage.Shared.Remotes.CodeRemotes.Redeem
+local AutoallsuccessEvent = game.ReplicatedStorage.Shared.Remotes.CodeRemotes.Success
+local code1 = {
+	"Thxfor9KAP", "Thxfor8KAP", "Thxfor7KAP", "sryforshutdownagain",
+	"ThxForActivePlayer6000", "ThxForActivePlayer5000", "ThxForActivePlayer4000",
+	"ThxForActivePlayer3000", "Seraphim", "ThxForGroup20k", "FLIPCOIN",
+	"EnchantBook", "HugeUpdate", "ThxFor500Likes", "ThxFor700AP", "ThxFor10kMembers",
+}
+local MarketplaceService = game:GetService("MarketplaceService")
+local GAMEPASS_ID = 1492355107
+local hasGamepass = false
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+
+-- ========== Character handling ==========
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+local rootPart = character:FindFirstChild("HumanoidRootPart")
+
+local function refreshCharacter(char)
+	character = char
+	humanoid = character:FindFirstChildOfClass("Humanoid")
+	rootPart = character:FindFirstChild("HumanoidRootPart")
+end
+player.CharacterAdded:Connect(refreshCharacter)
+
+-- ========== Utility Functions ==========
+local function safeGet(pathParts)
+	local cur = ReplicatedStorage
+	for _, p in ipairs(pathParts) do
+		if not cur then return nil end
+		cur = cur:FindFirstChild(p)
+	end
+	return cur
+end
+
+-- ========== Remotes ==========
+local BuyRemote = safeGet({"Shared","Remotes","ShopRemotes"}) and safeGet({"Shared","Remotes","ShopRemotes"}):FindFirstChild("BuyGacha")
+local UseRemote = safeGet({"Shared","Remotes","InventoryRemotes"}) and safeGet({"Shared","Remotes","InventoryRemotes"}):FindFirstChild("UseItem")
+local EnchantRemotesFolder = safeGet({"Shared","Remotes","EnchantRemotes"})
+
+-- ========== Extended States ==========
+local states = {
+	-- Automation Tab
+	AutoBuy = false,
+	AutoUse = false,
+	AutoCollect = false,
+	AutoClick = false,
+	AutoUseAllCodes = false,
+	
+	-- Player Tab
+	Fly = false,
+	NoClip = false,
+	InfJump = false,
+	AntiAFK = false,
+	
+	-- Visuals Tab
+	HideGUI = false,
+	ESP = false,
+	Chams = false,
+}
+
+-- ========== GUI Creation ==========
+
+local totalFeatures = 0
+for _ in pairs(states) do totalFeatures = totalFeatures + 1 end
+
+pcall(function() player.PlayerGui:FindFirstChild("AutoHubModernGUI"):Destroy() end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AutoHubModernGUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+
+-- Main Frame
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 500, 0, 600)
+frame.Position = UDim2.new(0.5, -250, 0.5, -300)
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
+frame.Parent = gui
+
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 16)
+
+-- Gradient Background
+local gradientBg = Instance.new("Frame", frame)
+gradientBg.Size = UDim2.new(1, 0, 1, 0)
+gradientBg.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+gradientBg.BorderSizePixel = 0
+gradientBg.ZIndex = 0
+
+local bgGradient = Instance.new("UIGradient", gradientBg)
+bgGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 40)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 15, 25)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 30, 45))
+}
+bgGradient.Rotation = 135
+
+task.spawn(function()
+	while task.wait(0.03) do
+		bgGradient.Rotation = (bgGradient.Rotation + 0.3) % 360
+	end
+end)
+
+local bgCorner = Instance.new("UICorner", gradientBg)
+bgCorner.CornerRadius = UDim.new(0, 16)
+
+-- Header
+local header = Instance.new("Frame", frame)
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 70)
+header.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+header.BorderSizePixel = 0
+
+local headerCorner = Instance.new("UICorner", header)
+headerCorner.CornerRadius = UDim.new(0, 16)
+
+local headerGradient = Instance.new("UIGradient", header)
+headerGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 70)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 40))
+}
+headerGradient.Rotation = 90
+
+-- Logo
+local logo = Instance.new("TextLabel", header)
+logo.Size = UDim2.new(0, 50, 0, 50)
+logo.Position = UDim2.new(0, 15, 0.5, -25)
+logo.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+logo.Text = "⚡"
+logo.Font = Enum.Font.GothamBold
+logo.TextSize = 24
+logo.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local logoCorner = Instance.new("UICorner", logo)
+logoCorner.CornerRadius = UDim.new(0, 12)
+
+local logoStroke = Instance.new("UIStroke", logo)
+logoStroke.Color = Color3.fromRGB(100, 200, 255)
+logoStroke.Thickness = 2
+
+-- Title
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(0, 200, 0, 25)
+title.Position = UDim2.new(0, 70, 0, 12)
+title.BackgroundTransparency = 1
+title.Text = "AutoHub V2.0 • Discord AutoHUBDev"
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Subtitle
+local subtitle = Instance.new("TextLabel", header)
+subtitle.Size = UDim2.new(0, 200, 0, 18)
+subtitle.Position = UDim2.new(0, 70, 0, 38)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "AutoHub V2 • Edited(Fixed) • new autocollect"
+subtitle.Font = Enum.Font.GothamBold
+subtitle.TextSize = 10
+subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Close Button
+local btnClose = Instance.new("TextButton", header)
+btnClose.Size = UDim2.new(0, 32, 0, 32)
+btnClose.Position = UDim2.new(1, -37, 0.5, -16)
+btnClose.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+btnClose.Text = "×"
+btnClose.Font = Enum.Font.GothamBlack
+btnClose.TextSize = 18
+btnClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnClose.AutoButtonColor = false
+
+local closeCorner = Instance.new("UICorner", btnClose)
+closeCorner.CornerRadius = UDim.new(1, 0)
+
+-- Minimize Button
+local btnMin = Instance.new("TextButton", header)
+btnMin.Size = UDim2.new(0, 32, 0, 32)
+btnMin.Position = UDim2.new(1, -79, 0.5, -16)
+btnMin.BackgroundColor3 = Color3.fromRGB(60, 150, 255)
+btnMin.Text = "─"
+btnMin.Font = Enum.Font.GothamBlack
+btnMin.TextSize = 16
+btnMin.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnMin.AutoButtonColor = false
+
+local minCorner = Instance.new("UICorner", btnMin)
+minCorner.CornerRadius = UDim.new(1, 0)
+
+-- Status Bar
+local statusBar = Instance.new("Frame", frame)
+statusBar.Size = UDim2.new(1, -30, 0, 35)
+statusBar.Position = UDim2.new(0, 15, 0, 80)
+statusBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+statusBar.BorderSizePixel = 0
+
+local statusCorner = Instance.new("UICorner", statusBar)
+statusCorner.CornerRadius = UDim.new(0, 10)
+
+local statusLabel = Instance.new("TextLabel", statusBar)
+statusLabel.Size = UDim2.new(1, -20, 1, 0)
+statusLabel.Position = UDim2.new(0, 10, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "🟢 ACTIVE: 0/" .. tostring(totalFeatures)
+statusLabel.Font = Enum.Font.GothamBold
+statusLabel.TextSize = 14
+statusLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tab Buttons
+local tabContainer = Instance.new("Frame", frame)
+tabContainer.Size = UDim2.new(1, -30, 0, 35)
+tabContainer.Position = UDim2.new(0, 15, 0, 125)
+tabContainer.BackgroundTransparency = 1
+tabContainer.BorderSizePixel = 0
+
+local tabList = Instance.new("UIListLayout", tabContainer)
+tabList.FillDirection = Enum.FillDirection.Horizontal
+tabList.Padding = UDim.new(0, 5)
+
+-- Create Tabs
+local tabs = {}
+local currentTab = "Automation"
+
+local function createTab(name, emoji)
+	local tab = Instance.new("TextButton", tabContainer)
+	tab.Size = UDim2.new(0, 100, 1, 0)
+	tab.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	tab.Text = emoji .. " " .. name
+	tab.Font = Enum.Font.GothamBold
+	tab.TextSize = 12
+	tab.TextColor3 = Color3.fromRGB(200, 200, 220)
+	tab.AutoButtonColor = false
+	
+	local tabCorner = Instance.new("UICorner", tab)
+	tabCorner.CornerRadius = UDim.new(0, 8)
+	
+	tab.MouseButton1Click:Connect(function()
+		currentTab = name
+		for tabName, container in pairs(tabs) do
+			container.Visible = (tabName == name)
+		end
+		-- Update tab colors
+		for _, otherTab in ipairs(tabContainer:GetChildren()) do
+			if otherTab:IsA("TextButton") then
+				if otherTab == tab then
+					TweenService:Create(otherTab, TweenInfo.new(0.2), {
+						BackgroundColor3 = Color3.fromRGB(0, 150, 255),
+						TextColor3 = Color3.fromRGB(255, 255, 255)
+					}):Play()
+				else
+					TweenService:Create(otherTab, TweenInfo.new(0.2), {
+						BackgroundColor3 = Color3.fromRGB(40, 40, 60),
+						TextColor3 = Color3.fromRGB(200, 200, 220)
+					}):Play()
+				end
+			end
+		end
+	end)
+	
+	-- Create container for this tab
+	local container = Instance.new("ScrollingFrame", frame)
+	container.Size = UDim2.new(1, -30, 1, -180)
+	container.Position = UDim2.new(0, 15, 0, 170)
+	container.BackgroundTransparency = 1
+	container.BorderSizePixel = 0
+	container.ScrollBarThickness = 4
+	container.ScrollBarImageColor3 = Color3.fromRGB(0, 150, 255)
+	container.CanvasSize = UDim2.new(0, 0, 0, 0)
+	container.Visible = (name == "Automation")
+	
+	local listLayout = Instance.new("UIListLayout", container)
+	listLayout.Padding = UDim.new(0, 8)
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	
+	listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		container.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+	end)
+	
+	tabs[name] = container
+	
+	-- Set first tab as active
+	if name == "Automation" then
+		TweenService:Create(tab, TweenInfo.new(0.2), {
+			BackgroundColor3 = Color3.fromRGB(0, 150, 255),
+			TextColor3 = Color3.fromRGB(255, 255, 255)
+		}):Play()
+	end
+	
+	return container
+end
+
+-- Create all tabs
+local automationTab = createTab("Automation", "🤖")
+local playerTab = createTab("Player", "🎮")
+local visualsTab = createTab("Visuals", "👁️")
+
+
+-- ========== Create Toggle Button Function ==========
+local function createToggle(name, emoji, description, parent)
+	local btn = Instance.new("Frame")
+	btn.Size = UDim2.new(1, 0, 0, 50)
+	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+	btn.BorderSizePixel = 0
+	
+	local btnCorner = Instance.new("UICorner", btn)
+	btnCorner.CornerRadius = UDim.new(0, 10)
+	
+	local btnStroke = Instance.new("UIStroke", btn)
+	btnStroke.Color = Color3.fromRGB(60, 60, 90)
+	btnStroke.Thickness = 1
+	
+	-- Icon
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 32, 0, 32)
+	icon.Position = UDim2.new(0, 8, 0.5, -16)
+	icon.BackgroundColor3 = Color3.fromRGB(50, 50, 80)
+	icon.Text = emoji
+	icon.Font = Enum.Font.GothamBold
+	icon.TextSize = 16
+	icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	local iconCorner = Instance.new("UICorner", icon)
+	iconCorner.CornerRadius = UDim.new(0, 8)
+	
+	-- Title
+	local titleLabel = Instance.new("TextLabel", btn)
+	titleLabel.Size = UDim2.new(0, 200, 0, 18)
+	titleLabel.Position = UDim2.new(0, 48, 0, 6)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = name
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 14
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	
+	-- Description
+	local desc = Instance.new("TextLabel", btn)
+	desc.Size = UDim2.new(0, 200, 0, 14)
+	desc.Position = UDim2.new(0, 48, 0, 26)
+	desc.BackgroundTransparency = 1
+	desc.Text = description
+	desc.Font = Enum.Font.Gotham
+	desc.TextSize = 10
+	desc.TextColor3 = Color3.fromRGB(170, 170, 200)
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	
+	-- Toggle Switch
+	local switch = Instance.new("Frame", btn)
+	switch.Size = UDim2.new(0, 40, 0, 20)
+	switch.Position = UDim2.new(1, -45, 0.5, -10)
+	switch.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+	switch.BorderSizePixel = 0
+	
+	local switchCorner = Instance.new("UICorner", switch)
+	switchCorner.CornerRadius = UDim.new(1, 0)
+	
+	local knob = Instance.new("Frame", switch)
+	knob.Size = UDim2.new(0, 16, 0, 16)
+	knob.Position = UDim2.new(0, 2, 0.5, -8)
+	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	knob.BorderSizePixel = 0
+	
+	local knobCorner = Instance.new("UICorner", knob)
+	knobCorner.CornerRadius = UDim.new(1, 0)
+	
+	-- Click Button
+	local clickBtn = Instance.new("TextButton", btn)
+	clickBtn.Size = UDim2.new(1, 0, 1, 0)
+	clickBtn.BackgroundTransparency = 1
+	clickBtn.Text = ""
+	
+	-- Update Status Function
+	local function updateStatus()
+		local count = 0
+		for _, v in pairs(states) do
+			if v then count = count + 1 end
+		end
+		statusLabel.Text = "🟢 ACTIVE: " .. tostring(count) .. "/" .. tostring(totalFeatures)
+	end
+	
+	-- Toggle Logic
+	clickBtn.MouseButton1Click:Connect(function()
+		states[name] = not states[name]
+		
+		if states[name] then
+			TweenService:Create(switch, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.2), {Position = UDim2.new(1, -18, 0.5, -8)}):Play()
+			TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(0, 200, 100)}):Play()
+			TweenService:Create(icon, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(0, 180, 80)}):Play()
+		else
+			TweenService:Create(switch, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 70, 100)}):Play()
+			TweenService:Create(knob, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -8)}):Play()
+			TweenService:Create(btnStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(60, 60, 90)}):Play()
+			TweenService:Create(icon, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 80)}):Play()
+		end
+		
+		updateStatus()
+	end)
+	
+	-- Hover Effect
+	clickBtn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 70)}):Play()
+	end)
+	
+	clickBtn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 55)}):Play()
+	end)
+	
+	btn.Parent = parent
+	return btn
+end
+
+-- ========== Create Action Button ==========
+local function createActionButton(name, emoji, description, color, callback, parent)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, 0, 0, 50)
+	btn.BackgroundColor3 = color
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	
+	local btnCorner = Instance.new("UICorner", btn)
+	btnCorner.CornerRadius = UDim.new(0, 10)
+	
+	local icon = Instance.new("TextLabel", btn)
+	icon.Size = UDim2.new(0, 32, 0, 32)
+	icon.Position = UDim2.new(0, 8, 0.5, -16)
+	icon.BackgroundTransparency = 1
+	icon.Text = emoji
+	icon.Font = Enum.Font.GothamBold
+	icon.TextSize = 16
+	icon.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	local titleLabel = Instance.new("TextLabel", btn)
+	titleLabel.Size = UDim2.new(0, 250, 0, 20)
+	titleLabel.Position = UDim2.new(0, 48, 0, 8)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = name
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextSize = 14
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	
+	local desc = Instance.new("TextLabel", btn)
+	desc.Size = UDim2.new(0, 250, 0, 14)
+	desc.Position = UDim2.new(0, 48, 0, 28)
+	desc.BackgroundTransparency = 1
+	desc.Text = description
+	desc.Font = Enum.Font.Gotham
+	desc.TextSize = 10
+	desc.TextColor3 = Color3.fromRGB(220, 220, 240)
+	desc.TextXAlignment = Enum.TextXAlignment.Left
+	
+	btn.MouseButton1Click:Connect(callback)
+	
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = color + Color3.fromRGB(15, 15, 15)}):Play()
+	end)
+	
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
+	end)
+	
+	btn.Parent = parent
+	return btn
+end
+
+-- ========== Create Buttons for Each Tab ==========
+
+-- Automation Tab
+createToggle("AutoBuy", "🛒", "Auto-purchase items", automationTab)
+createToggle("AutoUse", "🌀", "Auto-use inventory items", automationTab)
+createToggle("AutoCollect", "🎯", "Auto-collect platform items", automationTab)
+createToggle("AutoClick", "🖱️", "Auto click rapidly", automationTab)
+createToggle("AutoUseAllCodes", "🎁", "Redeem all codes", automationTab)
+
+createActionButton("Enchant Coin", "🔮", "Trigger enchant in your equip coin", 
+	Color3.fromRGB(70, 40, 100), function()
+	local folder = EnchantRemotesFolder or safeGet({"Shared","Remotes","EnchantRemotes"})
+	if folder then
+		for _, obj in ipairs(folder:GetChildren()) do
+			if obj:IsA("RemoteEvent") then
+				pcall(function() obj:FireServer("ButtonLabel") end)
+			end
+		end
+	end
+end, automationTab)
+
+-- Player Tab
+createToggle("Fly", "🕊️", "Fly mode (WASD + Space)", playerTab)
+createToggle("NoClip", "🔓", "Walk through walls", playerTab)
+createToggle("InfJump", "∞", "Infinite jumping", playerTab)
+createToggle("AntiAFK", "⏰", "Prevent AFK detection", playerTab)
+
+-- Visuals Tab
+createToggle("HideGUI", "🎯", "Hide game GUI", visualsTab)
+createToggle("ESP", "🎯", "Player ESP boxes", visualsTab)
+createToggle("Chams", "🌈", "Colorful player chams", visualsTab)
+
+
+-- ========== Entrance Animation ==========
+frame.Position = UDim2.new(0.5, -250, 1.5, 0)
+frame.Size = UDim2.new(0, 0, 0, 0)
+
+task.wait(0.1)
+
+TweenService:Create(frame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	Size = UDim2.new(0, 500, 0, 600),
+	Position = UDim2.new(0.5, -250, 0.5, -300)
+}):Play()
+
+-- ========== GUI Controls ==========
+btnClose.MouseButton1Click:Connect(function()
+	TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+		Size = UDim2.new(0, 0, 0, 0),
+		Position = UDim2.new(0.5, 0, 0.5, 0)
+	}):Play()
+	
+	task.wait(0.5)
+	gui:Destroy()
+end)
+
+local minimized = false
+btnMin.MouseButton1Click:Connect(function()
+	minimized = not minimized
+	
+	if minimized then
+		TweenService:Create(frame, TweenInfo.new(0.4), {Size = UDim2.new(0, 500, 0, 70)}):Play()
+		for _, container in pairs(tabs) do
+			container.Visible = false
+		end
+		statusBar.Visible = false
+		tabContainer.Visible = false
+	else
+		TweenService:Create(frame, TweenInfo.new(0.4), {Size = UDim2.new(0, 500, 0, 600)}):Play()
+		task.wait(0.4)
+		statusBar.Visible = true
+		tabContainer.Visible = true
+		tabs[currentTab].Visible = true
+	end
+end)
+
+-- F4 Toggle GUI
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.F4 then
+		frame.Visible = not frame.Visible
+	end
+end)
+
+-- ========== Drag Functionality ==========
+local dragging = false
+local dragStart = Vector2.new()
+local startPos = UDim2.new()
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- ========== Hover Effects ==========
+btnClose.MouseEnter:Connect(function()
+	TweenService:Create(btnClose, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 90, 90)}):Play()
+end)
+
+btnClose.MouseLeave:Connect(function()
+	TweenService:Create(btnClose, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 60, 60)}):Play()
+end)
+
+btnMin.MouseEnter:Connect(function()
+	TweenService:Create(btnMin, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 170, 255)}):Play()
+end)
+
+btnMin.MouseLeave:Connect(function()
+	TweenService:Create(btnMin, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 150, 255)}):Play()
+end)
+
+-- ========== NEW FEATURE SYSTEMS ==========
+-- Infinite Jump
+UserInputService.InputBegan:Connect(function(input, gp)
+	if not gp and input.KeyCode == Enum.KeyCode.Space and states.InfJump then
+		if humanoid then
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+-- Anti-AFK (замена старого блока, надёжная реализация)
+do
+	local virtualUser = game:GetService("VirtualUser")
+	-- подключаемся к событию Idled один раз
+	game:GetService("Players").LocalPlayer.Idled:Connect(function()
+		if states.AntiAFK then
+			-- имитация небольшого движения мыши/нажатия, только если включен переключатель
+			virtualUser:CaptureController()
+			virtualUser:ClickButton2(Vector2.new(0,0))
+			task.wait(1)
+			virtualUser:ClickButton2(Vector2.new(0,0))
+		end
+	end)
+end
+
+
+
+
+-- ========== ESP & Chams (работающие) ==========
+local espTable = {} -- хранит BillboardGui для каждого игрока
+local highlightTable = {} -- хранит Highlight для каждого игрока
+
+local function createESPForPlayer(plr)
+	if not plr.Character then return end
+	local hrp = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("Torso") or plr.Character:FindFirstChild("UpperTorso")
+	if not hrp then return end
+
+	-- BillboardGui (имя + дистанция)
+	if not espTable[plr] then
+		local bill = Instance.new("BillboardGui")
+		bill.Name = "AH_ESP"
+		bill.Adornee = hrp
+		bill.Size = UDim2.new(0, 120, 0, 40)
+		bill.StudsOffset = Vector3.new(0, 2.5, 0)
+		bill.AlwaysOnTop = true
+		bill.Parent = hrp
+
+		local txt = Instance.new("TextLabel", bill)
+		txt.Name = "NameLabel"
+		txt.Size = UDim2.new(1, 0, 1, 0)
+		txt.BackgroundTransparency = 1
+		txt.TextStrokeTransparency = 0.6
+		txt.TextScaled = true
+		txt.Font = Enum.Font.GothamBold
+		txt.TextColor3 = Color3.fromRGB(255,255,255)
+		txt.Text = plr.Name
+
+		espTable[plr] = bill
+	end
+
+	-- Highlight (chams)
+	if not highlightTable[plr] and plr.Character then
+		local ok, Highlight = pcall(function() return Instance.new("Highlight") end)
+		if ok and Highlight then
+			Highlight.Name = "AH_Highlight"
+			Highlight.Adornee = plr.Character
+			Highlight.Parent = plr.Character
+			Highlight.FillColor = Color3.fromRGB(0,200,120)
+			Highlight.OutlineColor = Color3.fromRGB(0,100,255)
+			Highlight.FillTransparency = 0.65
+			highlightTable[plr] = Highlight
+		end
+	end
+end
+
+local function removeESPForPlayer(plr)
+	if espTable[plr] then
+		pcall(function() espTable[plr]:Destroy() end)
+		espTable[plr] = nil
+	end
+	if highlightTable[plr] then
+		pcall(function() highlightTable[plr]:Destroy() end)
+		highlightTable[plr] = nil
+	end
+end
+
+-- Очистка при выходе игрока
+Players.PlayerRemoving:Connect(function(plr)
+	removeESPForPlayer(plr)
+end)
+
+-- Обновление каждую кадру/периодически
+RunService.RenderStepped:Connect(function()
+	-- если GUI удалён — чистим таблицы
+	if not gui.Parent then
+		for p in pairs(espTable) do removeESPForPlayer(p) end
+		return
+	end
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			if states.ESP then
+				-- создаём/обновляем Billboard
+				createESPForPlayer(plr)
+				-- обновляем текст с дистанцией
+				local bill = espTable[plr]
+				if bill and bill:FindFirstChild("NameLabel") then
+					local dist = math.floor((plr.Character.HumanoidRootPart.Position - (rootPart and rootPart.Position or Vector3.new())).Magnitude)
+					pcall(function()
+						bill.NameLabel.Text = plr.Name .. " [" .. tostring(dist) .. "m]"
+					end)
+				end
+			else
+				-- удалить только ESP (оставить Chams если включено отдельно)
+				if espTable[plr] then
+					pcall(function() espTable[plr]:Destroy() end)
+					espTable[plr] = nil
+				end
+			end
+
+			-- Chams отдельно
+			if states.Chams then
+				-- если Highlight ещё не создан — createESPForPlayer создаст его
+				if not highlightTable[plr] then createESPForPlayer(plr) end
+			else
+				if highlightTable[plr] then
+					pcall(function() highlightTable[plr]:Destroy() end)
+					highlightTable[plr] = nil
+				end
+			end
+		else
+			-- если у игрока нет персонажа — удалить возможные сущности
+			removeESPForPlayer(plr)
+		end
+	end
+end)
+
+
+
+
+
+-- ========== EXISTING AUTO LOOPS ==========
+
+-- Auto Use Codes
+task.spawn(function()
+	while task.wait(0.4) do
+		if not gui.Parent then break end
+		if states.AutoUseAllCodes and AutoallredeemEvent then
+			for _, code in ipairs(code1) do
+				pcall(function() AutoallredeemEvent:FireServer(code) end)
+				task.wait(0.2)
+			end
+		end
+	end
+end)
+
+-- Hide GUI
+task.spawn(function()
+	while task.wait(0.1) do
+		if not gui.Parent then break end
+		local ok, underbar = pcall(function()
+			local pg = player.PlayerGui
+			local mainInt = pg:FindFirstChild("mainInterface") or pg:FindFirstChild("MainInterface")
+			return mainInt and mainInt:FindFirstChild("MainFrame") and mainInt.MainFrame:FindFirstChild("UnderbarHolder")
+		end)
+		if ok and underbar then
+			pcall(function() underbar.Visible = not states.HideGUI end)
+		end
+	end
+end)
+
+-- AutoBuy
+task.spawn(function()
+	local ok, owns = pcall(function()
+		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, GAMEPASS_ID)
+	end)
+	hasGamepass = ok and owns
+end)
+
+task.spawn(function()
+	while task.wait(60) do
+		local ok, owns = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, GAMEPASS_ID)
+		end)
+		if ok then hasGamepass = owns end
+		if not gui.Parent then break end
+	end
+end)
+
+task.spawn(function()
+	while task.wait(0.25) do
+		if not gui.Parent then break end
+		if states.AutoBuy and BuyRemote then
+			pcall(function()
+				if hasGamepass then
+					BuyRemote:FireServer("x50")
+				else
+					BuyRemote:FireServer("10")
+				end
+			end)
+		end
+	end
+end)
+
+-- AutoCollect
+task.spawn(function()
+	while task.wait(0.2) do
+		if not gui.Parent then break end
+		if not states.AutoCollect or not rootPart or not humanoid then
+			task.wait(0.2)
+		else
+			local platform = workspace:FindFirstChild("Platform") and workspace.Platform:FindFirstChild("Plat")
+			if not platform then
+				task.wait(0.5)
+			else
+				pcall(function()
+					local function getNearestYut()
+						local nearest, minDist = nil, math.huge
+						for _, yut in ipairs(platform:GetChildren()) do
+							if yut:IsA("BasePart") then
+								local dist = (yut.Position - rootPart.Position).Magnitude
+								if dist < minDist then
+									minDist = dist
+									nearest = yut
+								end
+							end
+						end
+						return nearest, minDist
+					end
+
+					local yut, distance = getNearestYut()
+					if not yut or distance > 1000 then return end
+
+					local prevSpeed = humanoid.WalkSpeed
+					local prevNoClip = states.NoClip
+
+					states.NoClip = true
+					humanoid.WalkSpeed = 90
+
+					local step = 0
+					local amplitude = 15
+					local waveSpeed = 1.5
+
+					while yut and yut.Parent and (rootPart.Position - yut.Position).Magnitude > 3 and states.AutoCollect do
+						local pos = rootPart.Position
+						local targetPos = yut.Position
+						local dist = (targetPos - pos).Magnitude
+
+						if dist <= 30 then
+							humanoid.WalkSpeed = 26
+						else
+							humanoid.WalkSpeed = 90
+						end
+
+						step = step + waveSpeed * task.wait(0.05)
+						local offset = math.sin(step) * amplitude
+
+						local direction = (targetPos - pos).Unit
+						local rightVec = rootPart.CFrame.RightVector
+						local movePos = targetPos + rightVec * offset
+
+						humanoid:MoveTo(movePos)
+					end
+
+					humanoid.WalkSpeed = prevSpeed
+					states.NoClip = prevNoClip
+				end)
+			end
+		end
+	end
+end)
+
+-- AutoClick
+task.spawn(function()
+	while task.wait(0.1) do
+		if not gui.Parent then break end
+		if states.AutoClick then
+			pcall(function()
+				VirtualUser:Button1Down(Vector2.new(), workspace.CurrentCamera.CFrame)
+				task.wait(0.01)
+				VirtualUser:Button1Up(Vector2.new(), workspace.CurrentCamera.CFrame)
+			end)
+		end
+	end
+end)
+
+-- Auto Use Yut
+task.spawn(function()
+	while task.wait(0.4) do
+		if not gui.Parent then break end
+		if states.AutoUse and UseRemote then
+			pcall(function() UseRemote:FireServer("Yut") end)
+		end
+	end
+end)
+
+-- Fly System
+local flyBodyGyro, flyBodyVelocity
+RunService.Heartbeat:Connect(function()
+	if states.Fly and rootPart then
+		if not flyBodyGyro then
+			flyBodyGyro = Instance.new("BodyGyro")
+			flyBodyVelocity = Instance.new("BodyVelocity")
+			
+			flyBodyGyro.P = 1000
+			flyBodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+			flyBodyGyro.Parent = rootPart
+			
+			flyBodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
+			flyBodyVelocity.Parent = rootPart
+			
+			humanoid.PlatformStand = true
+		end
+		
+		local camera = workspace.CurrentCamera
+		local moveDir = Vector3.new()
+		
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+		
+		if moveDir.Magnitude > 0 then
+			flyBodyVelocity.Velocity = moveDir.Unit * 50
+		else
+			flyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+		end
+		
+		flyBodyGyro.CFrame = camera.CFrame
+	else
+		if flyBodyGyro then
+			flyBodyGyro:Destroy()
+			flyBodyVelocity:Destroy()
+			flyBodyGyro = nil
+			flyBodyVelocity = nil
+			humanoid.PlatformStand = false
+		end
+	end
+end)
+
+-- NoClip System
+RunService.Stepped:Connect(function()
+	if states.NoClip and character then
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	end
+end)
+
+print("✅ AutoHub V2.0 Premium Edition loaded successfully!")
+print("🎮 Controls: F4 to toggle GUI, Tabs for organization")
